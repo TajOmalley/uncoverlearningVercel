@@ -8,7 +8,7 @@ from datetime import timedelta
 import os
 from dotenv import load_dotenv
 import uuid
-from backend.src.infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
+from src.infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
 
 # Load environment variables
 load_dotenv()

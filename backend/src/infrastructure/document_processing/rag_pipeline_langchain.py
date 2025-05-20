@@ -5,9 +5,9 @@ from google.cloud import storage
 from datetime import timedelta
 from dotenv import load_dotenv
 from langchain_core.documents import Document
-from backend.src.infrastructure.document_processing.langchain_processor import LangChainDocumentProcessor
-from backend.src.infrastructure.vector_store.supabase_store import LangChainVectorStore
-from backend.src.infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
+from src.infrastructure.document_processing.langchain_processor import LangChainDocumentProcessor
+from src.infrastructure.vector_store.supabase_store import LangChainVectorStore
+from src.infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
 import logging
 
 # Load environment variables

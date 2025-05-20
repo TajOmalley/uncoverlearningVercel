@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from backend.src.core.app_settings import settings
-from backend.src.api.routes import api_router
+from src.core.app_settings import settings
+from src.api.routes import api_router
 # from src.infrastructure.vector_store.langchain_vector_store import LangChainVectorStore  # Old import
-from backend.src.infrastructure.vector_store.supabase_store import LangChainVectorStore  # Updated import
+from src.infrastructure.vector_store.supabase_store import LangChainVectorStore  # Changed
 import logging
 
 # Set up logging
