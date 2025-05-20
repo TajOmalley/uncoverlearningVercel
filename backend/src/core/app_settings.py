@@ -63,4 +63,5 @@ class Settings:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
 # Create settings instance
-settings = Settings() 
+settings = Settings()
+# End of settings file 

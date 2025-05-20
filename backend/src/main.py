@@ -1,3 +1,4 @@
+import os # Added for debugging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.app_settings import settings
@@ -9,6 +10,10 @@ import logging
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# --- TEMPORARY DEBUGGING ---
+print(f"DEBUG: GOOGLE_APPLICATION_CREDENTIALS as seen by main.py: {os.getenv('GOOGLE_APPLICATION_CREDENTIALS')}")
+# --- END TEMPORARY DEBUGGING ---
 
 # Create FastAPI app
 app = FastAPI(
@@ -57,4 +62,5 @@ app.include_router(api_router, prefix="/api")
 @app.get("/")
 async def root():
     """Root endpoint."""
+    # Simple health check or welcome message
     return {"message": "Welcome to the RAG API"} 
