@@ -44,7 +44,7 @@ def test_document_processing():
         
         # 3. Process PDF to get documents (chunks)
         print("\n3. Processing PDF into documents (chunks):")
-        test_pdf_filename = "attention_is_all_you_need.pdf"
+        test_pdf_filename = "Psychiatric-Mental_Health_Nursing-WEB.pdf"
         test_pdf_path = f"test_documents/{test_pdf_filename}"
         if not os.path.exists(test_pdf_path):
             raise FileNotFoundError(f"Test PDF not found: {test_pdf_path}")

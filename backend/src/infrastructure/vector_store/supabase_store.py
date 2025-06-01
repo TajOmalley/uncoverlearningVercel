@@ -8,7 +8,8 @@ from datetime import timedelta
 import os
 from dotenv import load_dotenv
 import uuid
-from backend.src.infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
+from ...infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
+from tqdm import tqdm
 
 # Load environment variables
 load_dotenv()
@@ -270,8 +271,15 @@ class LangChainVectorStore:
                 print("No document contents to process in add_documents_batch for embedding generation.")
                 return []
             try:
-                document_embeddings = self.embeddings.embed_documents(document_contents)
-                print(f"Successfully generated {len(document_embeddings)} embeddings in add_documents_batch.")
+                print("Generating embeddings...")
+                # Process embeddings in batches of 20 to show progress
+                embedding_batch_size = 20
+                document_embeddings = []
+                for i in tqdm(range(0, len(document_contents), embedding_batch_size), desc="Generating embeddings"):
+                    batch = document_contents[i:i + embedding_batch_size]
+                    batch_embeddings = self.embeddings.embed_documents(batch)
+                    document_embeddings.extend(batch_embeddings)
+                print(f"Successfully generated {len(document_embeddings)} embeddings.")
             except Exception as e_embed:
                 print(f"ERROR generating embeddings in add_documents_batch: {e_embed}")
                 raise
@@ -281,8 +289,9 @@ class LangChainVectorStore:
             raise ValueError("Mismatch between documents and final embeddings count.")
 
         # Prepare all chunks data first
+        print("Preparing chunks data...")
         chunks_data = []
-        for i, (doc, embedding_vector) in enumerate(zip(documents, document_embeddings)):
+        for i, (doc, embedding_vector) in enumerate(tqdm(zip(documents, document_embeddings), total=len(documents), desc="Preparing chunks")):
             # Ensure required metadata keys are present
             if not all(k in doc.metadata for k in ["fileId", "position", "originalName", "downloadUrl"]):
                 print(f"ERROR: Missing required metadata for document at index {i}. Metadata: {doc.metadata}")
@@ -301,17 +310,18 @@ class LangChainVectorStore:
             inserted_chunk_ids.append(chunk_uuid)
 
         # Insert in batches
-        print(f"Attempting to insert {len(chunks_data)} chunks in batches (size: {batch_size}) into '{self.table_name}'...")
-        for i in range(0, len(chunks_data), batch_size):
+        total_batches = (len(chunks_data) + batch_size - 1) // batch_size
+        print(f"Inserting {len(chunks_data)} chunks in {total_batches} batches (size: {batch_size})...")
+        
+        for i in tqdm(range(0, len(chunks_data), batch_size), desc="Inserting chunks", total=total_batches):
             batch = chunks_data[i:i + batch_size]
             try:
                 self.supabase.table(self.table_name).insert(batch).execute()
-                print(f"   ...stored batch {i//batch_size + 1}/{(len(chunks_data) + batch_size - 1)//batch_size}")
             except Exception as e_insert_batch:
                 print(f"ERROR inserting batch starting at index {i}: {e_insert_batch}")
                 raise Exception(f"Failed to insert batch starting at index {i}. Original error: {e_insert_batch}")
 
-        print(f"Successfully inserted {len(inserted_chunk_ids)} chunks into '{self.table_name}' using batch insertion.")
+        print(f"Successfully inserted {len(inserted_chunk_ids)} chunks using batch insertion.")
         return inserted_chunk_ids
     
     def similarity_search(

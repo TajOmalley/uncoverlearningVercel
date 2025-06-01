@@ -17,6 +17,7 @@ import base64
 import json
 from pathlib import Path
 import threading
+import asyncio
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -432,6 +433,39 @@ async def process_document(request_id: str, file_content: bytes, original_name: 
                 logger.error(f"[{request_id}] Failed to add documents to vector store: {str(e)}")
                 logger.error(traceback.format_exc())
                 raise HTTPException(status_code=500, detail=f"Failed to add documents to vector store: {str(e)}")
+            
+            # After vector store insertion, verify the data is indexed
+            max_retries = 3
+            retry_delay = 2  # seconds
+            
+            for attempt in range(max_retries):
+                # Try a simple query to verify the document is indexed
+                try:
+                    verification_results = vector_store.hybrid_search(
+                        query="",  # Empty query to just check existence
+                        query_embedding=[0] * 768,  # Zero embedding
+                        match_count=1,
+                        file_title=original_name
+                    )
+                    
+                    if verification_results:
+                        logger.info(f"[{request_id}] Document verified in Supabase after {attempt + 1} attempts")
+                        break
+                    else:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"[{request_id}] Document not yet indexed, waiting {retry_delay} seconds...")
+                            await asyncio.sleep(retry_delay)
+                        else:
+                            logger.error(f"[{request_id}] Document failed to index after {max_retries} attempts")
+                            raise HTTPException(
+                                status_code=500,
+                                detail="Document was processed but failed to index. Please try querying again in a few moments."
+                            )
+                except Exception as e:
+                    logger.error(f"[{request_id}] Error verifying document indexing: {str(e)}")
+                    if attempt == max_retries - 1:
+                        raise
+                    await asyncio.sleep(retry_delay)
             
             total_time = time.time() - start_time
             logger.info(f"[{request_id}] Document upload and processing completed successfully in {total_time:.2f} seconds")
