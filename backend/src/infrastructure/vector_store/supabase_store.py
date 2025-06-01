@@ -8,7 +8,7 @@ from datetime import timedelta
 import os
 from dotenv import load_dotenv
 import uuid
-from src.infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
+from backend.src.infrastructure.gcp.gcp_credentials_loader import load_gcp_credentials
 
 # Load environment variables
 load_dotenv()
@@ -235,6 +235,83 @@ class LangChainVectorStore:
                     print(f"   ...stored chunk {i + 1}/{len(documents)} in add_documents.")
         
         print(f"Successfully inserted {len(inserted_chunk_ids)} chunks into '{self.table_name}'.")
+        return inserted_chunk_ids
+    
+    def add_documents_batch(
+        self,
+        documents: List[Document],
+        embeddings_list: Optional[List[List[float]]] = None,
+        batch_size: int = 50
+    ) -> List[str]:
+        """
+        Add documents to Supabase using batch insertion.
+        
+        Args:
+            documents: List of LangChain Document objects
+            embeddings_list: Optional list of embedding vectors, parallel to documents
+            batch_size: Number of records to insert in each batch (default: 50)
+            
+        Returns:
+            List of UUIDs of the inserted chunks
+        """
+        inserted_chunk_ids: List[str] = []
+        document_embeddings: List[List[float]]
+
+        # Validate and get embeddings
+        if embeddings_list is not None:
+            if len(documents) != len(embeddings_list):
+                print("ERROR: Mismatch between number of documents and provided embeddings_list.")
+                raise ValueError("Mismatch between documents and provided embeddings count.")
+            document_embeddings = embeddings_list
+            print(f"Using {len(document_embeddings)} pre-computed embeddings in add_documents_batch.")
+        else:
+            document_contents = [doc.page_content for doc in documents]
+            if not document_contents:
+                print("No document contents to process in add_documents_batch for embedding generation.")
+                return []
+            try:
+                document_embeddings = self.embeddings.embed_documents(document_contents)
+                print(f"Successfully generated {len(document_embeddings)} embeddings in add_documents_batch.")
+            except Exception as e_embed:
+                print(f"ERROR generating embeddings in add_documents_batch: {e_embed}")
+                raise
+
+        if len(documents) != len(document_embeddings):
+            print("ERROR: Mismatch between number of documents and final embeddings count.")
+            raise ValueError("Mismatch between documents and final embeddings count.")
+
+        # Prepare all chunks data first
+        chunks_data = []
+        for i, (doc, embedding_vector) in enumerate(zip(documents, document_embeddings)):
+            # Ensure required metadata keys are present
+            if not all(k in doc.metadata for k in ["fileId", "position", "originalName", "downloadUrl"]):
+                print(f"ERROR: Missing required metadata for document at index {i}. Metadata: {doc.metadata}")
+                continue
+
+            chunk_uuid = doc.metadata.get("id", str(uuid.uuid4()))
+            chunks_data.append({
+                "id": chunk_uuid,
+                "fileId": doc.metadata["fileId"],
+                "position": doc.metadata["position"],
+                "originalName": doc.metadata["originalName"],
+                "content": doc.page_content,
+                "downloadUrl": doc.metadata["downloadUrl"],
+                "embedding": embedding_vector
+            })
+            inserted_chunk_ids.append(chunk_uuid)
+
+        # Insert in batches
+        print(f"Attempting to insert {len(chunks_data)} chunks in batches (size: {batch_size}) into '{self.table_name}'...")
+        for i in range(0, len(chunks_data), batch_size):
+            batch = chunks_data[i:i + batch_size]
+            try:
+                self.supabase.table(self.table_name).insert(batch).execute()
+                print(f"   ...stored batch {i//batch_size + 1}/{(len(chunks_data) + batch_size - 1)//batch_size}")
+            except Exception as e_insert_batch:
+                print(f"ERROR inserting batch starting at index {i}: {e_insert_batch}")
+                raise Exception(f"Failed to insert batch starting at index {i}. Original error: {e_insert_batch}")
+
+        print(f"Successfully inserted {len(inserted_chunk_ids)} chunks into '{self.table_name}' using batch insertion.")
         return inserted_chunk_ids
     
     def similarity_search(

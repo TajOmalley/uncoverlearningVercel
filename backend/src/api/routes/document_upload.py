@@ -425,7 +425,8 @@ async def process_document(request_id: str, file_content: bytes, original_name: 
                 for doc, meta in zip(documents, metadata_list):
                     doc.metadata = meta
                 
-                vector_store.add_documents(documents, embeddings_list=embeddings)
+                # Use batch insertion with a batch size of 50
+                vector_store.add_documents_batch(documents, embeddings_list=embeddings, batch_size=50)
                 logger.info(f"[{request_id}] Documents added to vector store successfully in {time.time() - start_vector:.2f} seconds")
             except Exception as e:
                 logger.error(f"[{request_id}] Failed to add documents to vector store: {str(e)}")

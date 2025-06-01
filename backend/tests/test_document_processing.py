@@ -1,8 +1,8 @@
 from dotenv import load_dotenv
 import os
-from src.infrastructure.document_processing.pdf_processor import LangChainDocumentProcessor
-from src.infrastructure.vector_store.supabase_store import LangChainVectorStore
-from src.core.app_settings import settings
+from backend.src.infrastructure.document_processing.pdf_processor import LangChainDocumentProcessor
+from backend.src.infrastructure.vector_store.supabase_store import LangChainVectorStore
+from backend.src.core.app_settings import settings
 import uuid
 import time
 from pathlib import Path
@@ -45,7 +45,7 @@ def test_document_processing():
         # 3. Process PDF to get documents (chunks)
         print("\n3. Processing PDF into documents (chunks):")
         test_pdf_filename = "attention_is_all_you_need.pdf"
-        test_pdf_path = f"test_docs/{test_pdf_filename}"
+        test_pdf_path = f"test_documents/{test_pdf_filename}"
         if not os.path.exists(test_pdf_path):
             raise FileNotFoundError(f"Test PDF not found: {test_pdf_path}")
         
@@ -90,25 +90,29 @@ def test_document_processing():
         # 6. Manually Insert Chunks into Supabase 'chunks' table
         print(f"\n6. Manually inserting {len(processed_documents)} chunks into Supabase '{settings.SUPABASE_TABLE}' table:")
         start_chunk_insertion_time = time.time()
+        
+        # Prepare chunk data
+        chunks_data = []
         for i, (doc, embedding_vector) in enumerate(zip(processed_documents, document_embeddings)):
-            chunk_uuid = str(uuid.uuid4()) # Unique ID for each chunk
-            chunk_data_to_insert = {
+            chunk_uuid = str(uuid.uuid4())  # Unique ID for each chunk
+            doc.metadata = {
                 "id": chunk_uuid,
-                "fileId": db_file_id, # Foreign key from 'files' table
+                "fileId": db_file_id,  # Foreign key from 'files' table
                 "position": i,
                 "originalName": test_pdf_filename,
-                "content": doc.page_content, # Text content of the chunk
-                "downloadUrl": gcp_url, # URL of the original PDF in GCP
-                "embedding": embedding_vector # The generated embedding
-                # 'fts' and 'created_at' columns are expected to be handled by Supabase (triggers/defaults)
+                "downloadUrl": gcp_url  # URL of the original PDF in GCP
             }
-            try:
-                vector_store_wrapper.supabase.table(settings.SUPABASE_TABLE).insert(chunk_data_to_insert).execute()
-            except Exception as e_insert:
-                print(f"ERROR inserting chunk {i} (ID: {chunk_uuid}): {e_insert}")
-                raise # Re-raise after logging
-            if (i + 1) % 10 == 0 or (i + 1) == len(processed_documents):
-                print(f"   Stored chunk {i + 1}/{len(processed_documents)}")
+        
+        try:
+            # Use batch insertion with a batch size of 50
+            vector_store_wrapper.add_documents_batch(
+                documents=processed_documents,
+                embeddings_list=document_embeddings,
+                batch_size=50
+            )
+        except Exception as e_insert:
+            print(f"ERROR during batch insertion: {e_insert}")
+            raise  # Re-raise after logging
         
         chunk_insertion_time = time.time() - start_chunk_insertion_time
         print(f"   ✅ All chunks inserted in {chunk_insertion_time:.2f}s")
