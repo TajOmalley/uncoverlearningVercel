@@ -22,9 +22,9 @@ services:
       - key: GENERATION_MODEL
         value: models/gemini-1.5-pro-latest
       - key: CHUNK_SIZE
-        value: "1000"
+        value: "2000"
       - key: CHUNK_OVERLAP
-        value: "200"
+        value: "300"
       - key: MATCH_COUNT
         value: "10"
       - key: FULL_TEXT_WEIGHT

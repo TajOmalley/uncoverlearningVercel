@@ -166,6 +166,14 @@ const uploadChunkWithRetry = async (
   }
 };
 
+// Function to calculate timeout based on file size (1 minute base + 1 minute per 10MB)
+const calculateTimeout = (fileSize: number): number => {
+  const baseSizeInMB = fileSize / (1024 * 1024);
+  const baseTimeout = 60000; // 1 minute base
+  const additionalTimeout = Math.ceil(baseSizeInMB / 10) * 60000; // 1 minute per 10MB
+  return baseTimeout + additionalTimeout;
+};
+
 // Chunked upload for larger files
 const uploadChunkedFile = async (
   file: File, 
@@ -267,6 +275,8 @@ const uploadChunkedFile = async (
     const finalizeResponse = await api.post('/api/documents/finalize_chunked_upload/', {
       upload_id: uploadId,
       original_name: filename
+    }, {
+      timeout: calculateTimeout(file.size) // Dynamic timeout based on file size
     });
     
     console.log('Chunked upload finalized, response:', finalizeResponse.data);
